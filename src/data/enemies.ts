@@ -1,0 +1,103 @@
+export const enemies: Record<string, import('../game/types').EnemyData> = {
+  "dragon": {
+    "name": "Dragon",
+    "description": "A massive red dragon with scales like molten lava.",
+    "health": 80,
+    "attack": 20,
+    "defense": 15,
+    "boss": true,
+    "weakness": ["sword", "enchanted_sword"],
+    "location": "cave",
+    "drops": ["dragon_scale"],
+    "dialogue_before": "RRRROOOAAARRR! Prepare to be incinerated!",
+    "dialogue_after": "Impossible... how did you... *collapses*"
+  },
+  "troll": {
+    "name": "Bridge Troll",
+    "description": "A hulking troll with a massive wooden club.",
+    "health": 50,
+    "attack": 15,
+    "defense": 10,
+    "location": "bridge",
+    "weakness": ["sword", "throwing_daggers"],
+    "drops": ["troll_club"],
+    "bribe_item": "coins",
+    "dialogue_before": "You dare challenge me?! I'll crush you!",
+    "dialogue_after": "Ugh... maybe I should find easier prey..."
+  },
+  "lake_monster": {
+    "name": "Lake Monster",
+    "description": "A serpentine creature with glowing eyes rising from the depths.",
+    "health": 60,
+    "attack": 18,
+    "defense": 12,
+    "location": "underground_lake",
+    "weakness": ["torch", "glowworm"],
+    "drops": ["monster_scale"],
+    "tribute_item": "shiny_pebble",
+    "dialogue_before": "You will become my next meal, surface dweller!",
+    "dialogue_after": "The waters claim you... not today..."
+  },
+  "ghost_knight": {
+    "name": "Ghost Knight",
+    "description": "A spectral warrior in tarnished armor, wielding a ghostly blade.",
+    "health": 40,
+    "attack": 12,
+    "defense": 8,
+    "location": "castle",
+    "weakness": ["ghost_sword", "spell_book"],
+    "drops": ["ghost_sword"],
+    "dialogue_before": "None shall pass without proving their valor!",
+    "dialogue_after": "You fight with honor... I yield..."
+  },
+  "town_guard": {
+    "name": "Town Guard",
+    "description": "A stern guard in heavy armor, hand on their weapon.",
+    "health": 30,
+    "attack": 10,
+    "defense": 10,
+    "location": "town_square",
+    "weakness": ["sword"],
+    "drops": [],
+    "dialogue_before": "You're under arrest for disturbing the peace!",
+    "dialogue_after": "Enough! I'll let you go this time."
+  },
+  "giant_spider": {
+    "name": "Giant Spider",
+    "description": "A massive spider with venomous fangs, lurking in shadows.",
+    "health": 35,
+    "attack": 14,
+    "defense": 5,
+    "location": "attic",
+    "weakness": ["torch"],
+    "drops": ["spider_silk"],
+    "dialogue_before": "*hisses menacingly* Fresh meat!",
+    "dialogue_after": "*scuttles away into the darkness*"
+  },
+  "goblin": {
+    "name": "Goblin Scout",
+    "description": "A sneaky goblin with a crude dagger and a nasty attitude.",
+    "health": 25,
+    "attack": 12,
+    "defense": 4,
+    "location": "marketplace",
+    "time_appear": "night",
+    "weakness": ["sword", "shield"],
+    "drops": ["goblin_pouch"],
+    "dialogue_before": "Hehe! Give me yer shiny things!",
+    "dialogue_after": "Ow! I'm tellin' the boss about you!"
+  },
+  "shadow_wraith": {
+    "name": "Shadow Wraith",
+    "description": "A dark, ethereal being that feeds on fear.",
+    "health": 45,
+    "attack": 16,
+    "defense": 6,
+    "location": "secret_chamber",
+    "time_appear": "night",
+    "weakness": ["torch", "healing_crystal"],
+    "drops": ["shadow_essence"],
+    "dialogue_before": "Your soul will join the darkness...",
+    "dialogue_after": "Light... burns..."
+  }
+}
