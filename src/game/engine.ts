@@ -11,6 +11,19 @@ import {
 const TIME_CYCLE = ['dawn', 'day', 'dusk', 'night'] as const;
 const WEATHER_TYPES = ['clear', 'rain', 'storm', 'fog'] as const;
 
+const CHANCE_TIME_CHANGE = 0.1;
+const CHANCE_WEATHER_CHANGE = 0.05;
+const CRITICAL_HIT_CHANCE = 0.15;
+const CRITICAL_MULTIPLIER = 2;
+const FLEE_SUCCESS_CHANCE = 0.4;
+const FLEE_DAMAGE = 10;
+const COMBAT_BASE_DAMAGE_MIN = 5;
+const COMBAT_BASE_DAMAGE_MAX = 15;
+const ENEMY_DAMAGE_VARIANCE = 7;
+const STORM_DAMAGE = 5;
+const MAX_LOG_ENTRIES = 500;
+const ACHIEVEMENT_SCORE = 25;
+
 export function createInitialState(): GameState {
   const locationItems: Record<string, string[]> = {};
   const locationCharacters: Record<string, string[]> = {};
@@ -71,6 +84,9 @@ export class GameEngine {
 
   log(text: string, type: LogEntry['type'] = 'info') {
     this.logs.push({ text, type });
+    if (this.logs.length > MAX_LOG_ENTRIES) {
+      this.logs = this.logs.slice(-MAX_LOG_ENTRIES);
+    }
   }
 
   getLogs() {
@@ -151,8 +167,8 @@ export class GameEngine {
     this.state.visitedLocations.add(target);
     this.log(`\nYou move ${direction}...`);
 
-    if (Math.random() < 0.1) this.changeTime();
-    if (Math.random() < 0.05) this.changeWeather();
+    if (Math.random() < CHANCE_TIME_CHANGE) this.changeTime();
+    if (Math.random() < CHANCE_WEATHER_CHANGE) this.changeWeather();
 
     this.checkConditions();
     this.handleLocationEvents();
@@ -492,12 +508,12 @@ export class GameEngine {
         if (d?.type === 'weapon') weaponBonus = Math.max(weaponBonus, d.attack || 0);
       }
 
-      let dmg = Math.floor(Math.random() * 11) + 5 + weaponBonus;
+      let dmg = Math.floor(Math.random() * (COMBAT_BASE_DAMAGE_MAX - COMBAT_BASE_DAMAGE_MIN + 1)) + COMBAT_BASE_DAMAGE_MIN + weaponBonus;
       if (enemy.weakness?.some((w: string) => this.state.inventory.includes(w))) {
         dmg = Math.floor(dmg * 1.5);
       }
-      if (Math.random() < 0.15) {
-        dmg = Math.floor(dmg * 2);
+      if (Math.random() < CRITICAL_HIT_CHANCE) {
+        dmg = Math.floor(dmg * CRITICAL_MULTIPLIER);
         this.log('CRITICAL HIT!', 'combat');
       }
 
@@ -510,12 +526,12 @@ export class GameEngine {
         return;
       }
     } else if (action === 'flee') {
-      if (Math.random() < 0.4) {
+      if (Math.random() < FLEE_SUCCESS_CHANCE) {
         this.log('You successfully flee from combat!', 'success');
         this.state.inCombat = false;
         this.state.currentEnemy = null;
         this.state.enemyHealth = 0;
-        this.state.health = Math.max(0, this.state.health - 10);
+        this.state.health = Math.max(0, this.state.health - FLEE_DAMAGE);
         return;
       } else {
         this.log('You fail to escape!', 'error');
@@ -523,7 +539,7 @@ export class GameEngine {
     }
 
     const playerDef = this.getPlayerDefense();
-    const enemyDmg = Math.max(1, enemy.attack - Math.floor(playerDef / 3) + Math.floor(Math.random() * 7) - 3);
+    const enemyDmg = Math.max(1, enemy.attack - Math.floor(playerDef / 3) + Math.floor(Math.random() * ENEMY_DAMAGE_VARIANCE) - Math.floor(ENEMY_DAMAGE_VARIANCE / 2));
     this.state.health -= enemyDmg;
     this.log(`${enemy.name} deals ${enemyDmg} damage to you!`, 'error');
 
@@ -738,8 +754,8 @@ export class GameEngine {
     const msgs: Record<string, string> = { rain: 'Rain starts to fall.', storm: 'A fierce storm erupts!', fog: 'Thick fog rolls in.', clear: 'The weather clears up.' };
     this.log(msgs[this.state.weather] || '', 'info');
     if (this.state.weather === 'storm') {
-      this.state.health -= 5;
-      this.log('The storm damages you slightly! (-5 HP)', 'error');
+      this.state.health -= STORM_DAMAGE;
+      this.log(`The storm damages you slightly! (-${STORM_DAMAGE} HP)`, 'error');
     }
   }
 
@@ -747,7 +763,7 @@ export class GameEngine {
     if (!this.state.achievements.includes(name)) {
       this.state.achievements.push(name);
       this.log(`Achievement unlocked: ${name}`, 'achievement');
-      this.state.score += 25;
+      this.state.score += ACHIEVEMENT_SCORE;
     }
   }
 
@@ -779,11 +795,14 @@ export class GameEngine {
     const trimmed = input.trim();
     if (!trimmed) return;
 
-    if (/^\d+$/.test(trimmed)) {
+    const sanitized = trimmed.replace(/[<>]/g, '');
+    if (!sanitized) return;
+
+    if (/^\d+$/.test(sanitized)) {
       return;
     }
 
-    const parts = trimmed.toLowerCase().split(' ');
+    const parts = sanitized.toLowerCase().split(' ');
     const action = this.resolveCommand(parts[0]);
 
     if (this.state._pendingRiddle) {
@@ -860,6 +879,16 @@ export class GameEngine {
         break;
       case 'load':
         this.loadFromStorage();
+        break;
+      case 'help':
+      case '?':
+        this.log('\n=== Available Commands ===', 'info');
+        this.log('Movement: north/south/east/west (or n/s/e/w), northeast/northwest/southeast/southwest (or ne/nw/se/sw), up/down (or u/d)');
+        this.log('Actions: take <item>, use <item>, talk <character>, look, map');
+        this.log('Combat: attack, flee');
+        this.log('Info: inventory (or i), health (or h), score, status, quests');
+        this.log('System: save, load, undo');
+        this.log('Special: mix (combine items at alchemist)');
         break;
       default:
         this.log(`I don't understand that. Type 'help' for commands.`, 'warning');
@@ -964,6 +993,9 @@ export class GameEngine {
       const raw = localStorage.getItem('rogueZorkSave');
       if (!raw) return false;
       const data = JSON.parse(raw);
+      if (!this.validateSaveData(data)) {
+        return false;
+      }
       this.state.location = data.location;
       this.state.inventory = data.inventory;
       this.state.health = data.health;
@@ -986,5 +1018,40 @@ export class GameEngine {
     } catch {
       return false;
     }
+  }
+
+  private validateSaveData(data: unknown): data is {
+    location: string;
+    inventory: string[];
+    health: number;
+    score: number;
+    moves: number;
+    visitedLocations: string[];
+    achievements: string[];
+    timeOfDay: string;
+    weather: string;
+    activeQuests: string[];
+    completedQuests: string[];
+    locationItems: Record<string, string[]>;
+    locationCharacters: Record<string, string[]>;
+    solvedPuzzles: string[];
+    freedPrincess: boolean;
+    dragonDefeated: boolean;
+    completedObjectives: Record<string, string[]>;
+  } {
+    if (!data || typeof data !== 'object') return false;
+    const d = data as Record<string, unknown>;
+    return (
+      typeof d.location === 'string' &&
+      Array.isArray(d.inventory) &&
+      typeof d.health === 'number' &&
+      typeof d.score === 'number' &&
+      typeof d.moves === 'number' &&
+      Array.isArray(d.visitedLocations)
+    );
+  }
+
+  getDataRefs() {
+    return { characters, quests, items, enemies, puzzles, locations };
   }
 }

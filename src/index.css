@@ -133,6 +133,14 @@ body {
 .stat.health.med { color: var(--accent-yellow); }
 .stat.score { color: var(--accent-yellow); }
 
+.stat.save-status.saving { color: var(--accent-yellow); animation: pulse 1s infinite; }
+.stat.save-status.saved { color: var(--accent-green); }
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
 /* Game Log */
 .game-log {
   flex: 1;
@@ -309,6 +317,21 @@ body {
   color: var(--accent-yellow);
   border-color: var(--accent-yellow);
 }
+
+.vertical-buttons { display: flex; gap: 8px; justify-content: center; padding: 0 12px 8px; }
+
+.menu-section-label { width: 100%; font-size: 11px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px; padding: 4px 0 2px; }
+
+.inv-title { cursor: pointer; }
+.inv-title:hover { color: var(--accent-cyan); }
+
+.quest-item-completed { opacity: 0.6; }
+
+.status-accent-green { color: var(--accent-green); }
+
+.welcome-subtitle { color: var(--text-secondary); font-size: 13px; }
+
+.visited-count { margin-top: 12px; }
 
 /* Room Map */
 .room-map {

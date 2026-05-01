@@ -158,3 +158,12 @@ export interface LogEntry {
   text: string;
   type: 'info' | 'success' | 'error' | 'warning' | 'combat' | 'quest' | 'achievement' | 'room-desc';
 }
+
+export interface GameDataReferences {
+  characters: Record<string, CharacterData>;
+  quests: Record<string, QuestData>;
+  items: Record<string, ItemData>;
+  enemies: Record<string, EnemyData>;
+  puzzles: Record<string, PuzzleData>;
+  locations: Record<string, LocationData>;
+}

@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { GameEngine } from './game/engine';
 import { locations } from './data/locations';
+import { characters } from './data/characters';
+import { quests } from './data/quests';
 import './index.css';
 
 type Theme = 'dark' | 'light';
@@ -13,6 +15,7 @@ function App() {
   const [started, setStarted] = useState(false);
   const [tab, setTab] = useState<'play' | 'map' | 'info'>('play');
   const [showInv, setShowInv] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [theme, setTheme] = useState<Theme>(() => {
     if (typeof window === 'undefined') return 'dark';
 
@@ -62,7 +65,7 @@ function App() {
     if (itemsHere?.length) g.log(`You see: ${itemsHere.join(', ')}`, 'warning');
     const charsHere = g.state.locationCharacters['forest'];
     if (charsHere?.length) {
-      const names = charsHere.map((c: string) => (g as unknown as Record<string, Record<string, { name: string }>>).characters?.[c]?.name || c);
+      const names = charsHere.map((c: string) => characters[c]?.name || c);
       g.log(`You encounter: ${names.join(', ')}`, 'info');
     }
     g.log(`Exits: ${Object.keys(locations['forest']?.exits || {}).join(', ')}`, 'success');
@@ -104,10 +107,7 @@ function App() {
         if (itemsHere?.length) engine.log(`You see: ${itemsHere.join(', ')}`, 'warning');
         const charsHere = engine.state.locationCharacters[engine.state.location];
         if (charsHere?.length) {
-          const charNames = charsHere.map((c: string) => {
-            const allChars = (engine as unknown as { characters: Record<string, { name: string }> }).characters;
-            return allChars?.[c]?.name || c;
-          });
+          const charNames = charsHere.map((c: string) => characters[c]?.name || c);
           engine.log(`You encounter: ${charNames.join(', ')}`, 'info');
         }
         engine.log(`Exits: ${Object.keys(loc.exits).join(', ')}`, 'success');
@@ -125,6 +125,15 @@ function App() {
         }
       }
       engine.log(`Visited: ${visited.length}/${Object.keys(locations).length} locations`, 'info');
+    } else if (action === 'save') {
+      setSaveStatus('saving');
+      engine.processInput(action);
+      setTimeout(() => {
+        setSaveStatus('saved');
+        setTimeout(() => setSaveStatus('idle'), 2000);
+      }, 300);
+    } else if (action === 'help') {
+      engine.processInput(action);
     } else {
       engine.processInput(action);
     }
@@ -137,7 +146,7 @@ function App() {
         <div className="welcome">
           <h1>Rogue Zork</h1>
           <p>A text adventure with combat, quests, puzzles, and multiple endings.</p>
-          <p style={{ color: 'var(--text-secondary)', fontSize: 13 }}>
+          <p className="welcome-subtitle">
             Tap directional buttons to move, or type commands for full control.
           </p>
           <button
@@ -172,6 +181,8 @@ function App() {
         <span className={hpClass}>{s.health}/{s.maxHealth}</span>
         <span className="stat score">{s.score}pts</span>
         <span className="stat">{s.moves}/{s.maxMoves}</span>
+        {saveStatus === 'saving' && <span className="stat save-status saving">Saving...</span>}
+        {saveStatus === 'saved' && <span className="stat save-status saved">Saved!</span>}
         <button
           className="theme-toggle"
           onClick={() => setTheme((current) => (current === 'dark' ? 'light' : 'dark'))}
@@ -203,43 +214,67 @@ function App() {
       {tab === 'play' && (
         <>
           {/* Direction Pad */}
-          <div className="dir-pad">
-            <div className={`dir-btn ${loc?.exits['northwest'] ? 'move' : 'empty'}`}
-              onClick={() => loc?.exits['northwest'] && handleAction('northwest')}>
+          <div className="dir-pad" role="navigation" aria-label="Directional movement">
+            <button className={`dir-btn ${loc?.exits['northwest'] ? 'move' : 'empty'}`}
+              onClick={() => loc?.exits['northwest'] && handleAction('northwest')}
+              disabled={!loc?.exits['northwest']}
+              aria-label="Move northwest"
+              aria-disabled={!loc?.exits['northwest']}>
               {loc?.exits['northwest'] ? 'NW' : ''}
-            </div>
-            <div className={`dir-btn ${loc?.exits['north'] ? 'move' : 'empty'}`}
-              onClick={() => loc?.exits['north'] && handleAction('north')}>
+            </button>
+            <button className={`dir-btn ${loc?.exits['north'] ? 'move' : 'empty'}`}
+              onClick={() => loc?.exits['north'] && handleAction('north')}
+              disabled={!loc?.exits['north']}
+              aria-label="Move north"
+              aria-disabled={!loc?.exits['north']}>
               {loc?.exits['north'] ? 'N' : ''}
-            </div>
-            <div className={`dir-btn ${loc?.exits['northeast'] ? 'move' : 'empty'}`}
-              onClick={() => loc?.exits['northeast'] && handleAction('northeast')}>
+            </button>
+            <button className={`dir-btn ${loc?.exits['northeast'] ? 'move' : 'empty'}`}
+              onClick={() => loc?.exits['northeast'] && handleAction('northeast')}
+              disabled={!loc?.exits['northeast']}
+              aria-label="Move northeast"
+              aria-disabled={!loc?.exits['northeast']}>
               {loc?.exits['northeast'] ? 'NE' : ''}
-            </div>
-            <div className={`dir-btn ${loc?.exits['west'] ? 'move' : 'empty'}`}
-              onClick={() => loc?.exits['west'] && handleAction('west')}>
+            </button>
+            <button className={`dir-btn ${loc?.exits['west'] ? 'move' : 'empty'}`}
+              onClick={() => loc?.exits['west'] && handleAction('west')}
+              disabled={!loc?.exits['west']}
+              aria-label="Move west"
+              aria-disabled={!loc?.exits['west']}>
               {loc?.exits['west'] ? 'W' : ''}
-            </div>
-            <div className="dir-btn here">*</div>
-            <div className={`dir-btn ${loc?.exits['east'] ? 'move' : 'empty'}`}
-              onClick={() => loc?.exits['east'] && handleAction('east')}>
+            </button>
+            <div className="dir-btn here" aria-current="true">*</div>
+            <button className={`dir-btn ${loc?.exits['east'] ? 'move' : 'empty'}`}
+              onClick={() => loc?.exits['east'] && handleAction('east')}
+              disabled={!loc?.exits['east']}
+              aria-label="Move east"
+              aria-disabled={!loc?.exits['east']}>
               {loc?.exits['east'] ? 'E' : ''}
-            </div>
-            <div className={`dir-btn ${loc?.exits['southwest'] ? 'move' : 'empty'}`}
-              onClick={() => loc?.exits['southwest'] && handleAction('southwest')}>
+            </button>
+            <button className={`dir-btn ${loc?.exits['southwest'] ? 'move' : 'empty'}`}
+              onClick={() => loc?.exits['southwest'] && handleAction('southwest')}
+              disabled={!loc?.exits['southwest']}
+              aria-label="Move southwest"
+              aria-disabled={!loc?.exits['southwest']}>
               {loc?.exits['southwest'] ? 'SW' : ''}
-            </div>
-            <div className={`dir-btn ${loc?.exits['south'] ? 'move' : 'empty'}`}
-              onClick={() => loc?.exits['south'] && handleAction('south')}>
+            </button>
+            <button className={`dir-btn ${loc?.exits['south'] ? 'move' : 'empty'}`}
+              onClick={() => loc?.exits['south'] && handleAction('south')}
+              disabled={!loc?.exits['south']}
+              aria-label="Move south"
+              aria-disabled={!loc?.exits['south']}>
               {loc?.exits['south'] ? 'S' : ''}
-            </div>
-            <div className={`dir-btn ${loc?.exits['southeast'] ? 'move' : 'empty'}`}
-              onClick={() => loc?.exits['southeast'] && handleAction('southeast')}>
+            </button>
+            <button className={`dir-btn ${loc?.exits['southeast'] ? 'move' : 'empty'}`}
+              onClick={() => loc?.exits['southeast'] && handleAction('southeast')}
+              disabled={!loc?.exits['southeast']}
+              aria-label="Move southeast"
+              aria-disabled={!loc?.exits['southeast']}>
               {loc?.exits['southeast'] ? 'SE' : ''}
-            </div>
+            </button>
           </div>
           {(loc?.exits['up'] || loc?.exits['down']) && (
-            <div style={{ display: 'flex', gap: 8, justifyContent: 'center', padding: '0 12px 8px' }}>
+            <div className="vertical-buttons">
               {loc?.exits['up'] && (
                 <button className="action-btn move" onClick={() => handleAction('up')}>Up</button>
               )}
@@ -262,7 +297,7 @@ function App() {
           <div className="action-menu">
             {menuItems.map((item, i) => {
               if (item.type === 'section') {
-                return <span key={i} style={{ width: '100%', fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.5, padding: '4px 0 2px' }}>{item.label}</span>;
+                return <span key={i} className="menu-section-label">{item.label}</span>;
               }
               let cls = 'action-btn';
               if (item.type === 'move') cls += ' move';
@@ -282,7 +317,7 @@ function App() {
           {/* Inventory Toggle */}
           {s.inventory.length > 0 && (
             <div className="inventory-panel">
-              <div className="inv-title" style={{ cursor: 'pointer' }} onClick={() => setShowInv(!showInv)}>
+              <div className="inv-title" onClick={() => setShowInv(!showInv)}>
                 Inventory ({s.inventory.length}) {showInv ? '▼' : '▶'}
               </div>
               {showInv && (
@@ -327,7 +362,7 @@ function App() {
             );
           })}
           {s.visitedLocations.size === 0 && <p>No locations explored yet.</p>}
-          <p style={{ marginTop: 12 }}>Visited: {s.visitedLocations.size}/{Object.keys(locations).length} locations</p>
+          <p className="visited-count">Visited: {s.visitedLocations.size}/{Object.keys(locations).length} locations</p>
         </div>
       )}
 
@@ -345,8 +380,7 @@ function App() {
             <>
               <h3>Active Quests</h3>
               {s.activeQuests.map((qid: string) => {
-                const allQuests = (engine as unknown as { quests: Record<string, { name: string; description: string }> }).quests;
-                const q = allQuests?.[qid];
+                const q = quests[qid];
                 return q ? (
                   <div key={qid} className="quest-item">
                     <div className="quest-name">{q.name}</div>
@@ -361,10 +395,9 @@ function App() {
             <>
               <h3>Completed Quests</h3>
               {s.completedQuests.map((qid: string) => {
-                const allQuests = (engine as unknown as { quests: Record<string, { name: string; description: string }> }).quests;
-                const q = allQuests?.[qid];
+                const q = quests[qid];
                 return q ? (
-                  <div key={qid} className="quest-item" style={{ opacity: 0.6 }}>
+                  <div key={qid} className="quest-item quest-item-completed">
                     <div className="quest-name">✓ {q.name}</div>
                   </div>
                 ) : null;
@@ -381,8 +414,8 @@ function App() {
             </>
           )}
 
-          {s.dragonDefeated && <p style={{ color: 'var(--accent-green)' }}>Dragon: Defeated</p>}
-          {s.freedPrincess && <p style={{ color: 'var(--accent-green)' }}>Princess: Freed</p>}
+          {s.dragonDefeated && <p className="status-accent-green">Dragon: Defeated</p>}
+          {s.freedPrincess && <p className="status-accent-green">Princess: Freed</p>}
         </div>
       )}
     </div>
