@@ -7,6 +7,9 @@ import { puzzles } from '../data/puzzles';
 import {
   GameState, GameStateSnapshot, LogEntry, EnemyData,
 } from './types';
+import { createInventoryModule } from './inventory';
+import { createCombatModule } from './combat';
+import { createQuestModule } from './quests';
 
 const TIME_CYCLE = ['dawn', 'day', 'dusk', 'night'] as const;
 const WEATHER_TYPES = ['clear', 'rain', 'storm', 'fog'] as const;
@@ -74,10 +77,32 @@ export function cloneState(state: GameState): GameState {
 export class GameEngine {
   state: GameState;
   logs: LogEntry[];
+  private inventoryModule: ReturnType<typeof createInventoryModule>;
+  private combatModule: ReturnType<typeof createCombatModule>;
+  private questModule: ReturnType<typeof createQuestModule>;
 
   constructor() {
     this.state = createInitialState();
     this.logs = [];
+
+    const callbacks = {
+      log: (text: string, type?: LogEntry['type']) => this.log(text, type),
+      savePreviousState: () => this.savePreviousState(),
+      unlockAchievement: (name: string) => this.unlockAchievement(name),
+    };
+
+    this.inventoryModule = createInventoryModule(this.state, callbacks, {
+      checkEnding: (type: string) => this.checkEnding(type),
+      checkQuestProgress: (qid, t, v) => this.questModule.checkQuestProgress(qid, t, v),
+    });
+    this.combatModule = createCombatModule(
+      this.state,
+      callbacks,
+      () => this.inventoryModule.getPlayerDefense(),
+      () => this.inventoryModule.getWeaponBonus()
+    );
+    this.questModule = createQuestModule(this.state, callbacks);
+
     this.state.weather = WEATHER_TYPES[Math.floor(Math.random() * WEATHER_TYPES.length)];
     this.changeWeather();
   }
@@ -176,22 +201,7 @@ export class GameEngine {
   }
 
   takeItem(itemName: string): boolean {
-    const itemsHere = this.state.locationItems[this.state.location] || [];
-    const found = itemsHere.find((i: string) => i.toLowerCase() === itemName.toLowerCase());
-    if (!found) {
-      this.log(`There is no ${itemName} here.`, 'error');
-      return false;
-    }
-
-    this.savePreviousState();
-    this.state.locationItems[this.state.location] = itemsHere.filter((i: string) => i !== found);
-    this.state.inventory.push(found);
-    this.state.score += 10;
-    this.log(`You take the ${found}.`, 'success');
-    if (this.state.inventory.length >= 15 && !this.state.achievements.includes('Collector')) {
-      this.unlockAchievement('Collector');
-    }
-    return true;
+    return this.inventoryModule.takeItem(itemName, this.state.locationItems);
   }
 
   talkTo(characterId: string): boolean {
@@ -374,213 +384,31 @@ export class GameEngine {
   }
 
   offerQuest(questId: string) {
-    if (quests[questId] && !this.state.activeQuests.includes(questId) && !this.state.completedQuests.includes(questId)) {
-      this.state.activeQuests.push(questId);
-      this.log(`\nQUEST OFFERED: ${quests[questId].name}`, 'quest');
-      this.log(`  ${quests[questId].description}`);
-      this.log('  (Quest auto-accepted)');
-    }
+    this.questModule.offerQuest(questId);
   }
 
   useItem(itemName: string): boolean {
-    const item = this.state.inventory.find((i: string) => i.toLowerCase() === itemName.toLowerCase());
-    if (!item) {
-      this.log(`You don't have a ${itemName} in your inventory.`, 'error');
-      return false;
-    }
-
-    const itemData = items[item];
-
-    if (itemData?.consumable && itemData.health) {
-      this.state.health = Math.min(this.state.maxHealth, this.state.health + itemData.health);
-      this.state.inventory = this.state.inventory.filter((i: string) => i !== item);
-      this.log(`You use the ${item} and feel better!`, 'success');
-      if (itemData.score) this.state.score += itemData.score;
-      return true;
-    }
-
-    if (item === 'treasure_chest' && this.state.inventory.includes('rusty_key')) {
-      this.state.inventory = this.state.inventory.filter((i: string) => i !== 'treasure_chest' && i !== 'rusty_key');
-      this.state.inventory.push('ultimate_treasure');
-      this.log('You open the treasure chest and find the ULTIMATE TREASURE!', 'success');
-      this.state.score += 100;
-      this.checkEnding('treasure');
-      return true;
-    }
-    if (item === 'rusty_key' && this.state.location === 'tower' && !this.state.freedPrincess) {
-      this.state.inventory = this.state.inventory.filter((i: string) => i !== 'rusty_key');
-      this.state.freedPrincess = true;
-      this.log('You unlock the princess chains! She is free!', 'success');
-      this.state.score += 75;
-      this.checkQuestProgress('free_princess', 'action', 'use_rusty_key_at_tower');
-      this.checkEnding('hero');
-      return true;
-    }
-    if (item === 'torch' && this.state.location === 'underground_lake') {
-      this.log('The torch reveals a hidden alcove with a mystic shell!', 'success');
-      const locItems = this.state.locationItems[this.state.location];
-      if (locItems?.includes('mystic_shell')) {
-        this.state.locationItems[this.state.location] = locItems.filter((i: string) => i !== 'mystic_shell');
-        this.state.inventory.push('mystic_shell');
-      }
-      return true;
-    }
-    if (item === 'ancient_map') {
-      this.log('The ancient map reveals the location of the ultimate treasure!');
-      this.state.score += 20;
-      return true;
-    }
-    if (item === 'telescope') {
-      this.log('Through the telescope, you spot distant lands and secret paths!');
-      this.state.score += 10;
-      return true;
-    }
-    if (item === 'mystic_shell') {
-      this.state.health = Math.min(this.state.maxHealth, this.state.health + 20);
-      this.state.score += 30;
-      this.log('The mystic shell resonates with ancient power!', 'success');
-      return true;
-    }
-    if (item === 'travel_guide') {
-      this.log('The travel guide reveals shortcuts and secret locations!');
-      this.state.score += 15;
-      return true;
-    }
-    if (item === 'spell_book') {
-      this.log('You study the spell book and learn protective magic!');
-      this.state.health = Math.min(this.state.maxHealth, this.state.health + 10);
-      this.state.score += 15;
-      return true;
-    }
-    if (item === 'old_diary' && this.state.inventory.includes('magnifying_glass')) {
-      this.log('The magnifying glass reveals invisible ink pointing to the secret chamber!', 'success');
-      this.state.score += 35;
-      return true;
-    }
-    if (item === 'sword') {
-      this.log('Your sword gleams in the light, ready for battle!');
-      return true;
-    }
-    if (item === 'shield') {
-      this.state.health = Math.min(this.state.maxHealth, this.state.health + 5);
-      this.log('Your shield provides protection against attacks!');
-      return true;
-    }
-    if (item === 'rope' && this.state.location === 'underground_lake') {
-      this.log('You use the rope to safely explore deeper into the cavern!', 'success');
-      this.state.score += 15;
-      return true;
-    }
-    if (item === 'bread') {
-      this.state.health = Math.min(this.state.maxHealth, this.state.health + 10);
-      this.state.inventory = this.state.inventory.filter((i: string) => i !== item);
-      this.log('The bread satisfies your hunger!', 'success');
-      return true;
-    }
-
-    this.log(`You can't figure out how to use the ${item}.`);
-    return false;
+    return this.inventoryModule.useItem(itemName, this.state.locationItems);
   }
 
   startCombat(enemyId: string) {
-    const enemy = enemies[enemyId];
-    if (!enemy) return;
-
-    this.state.inCombat = true;
-    this.state.currentEnemy = { ...enemy };
-    this.state.enemyHealth = enemy.health;
-    this.log(`\nCOMBAT BEGINS!`, 'combat');
-    this.log(`${enemy.name}: ${enemy.dialogue_before}`, 'combat');
-    this.log(`Enemy HP: ${enemy.health} | Attack: ${enemy.attack} | Defense: ${enemy.defense}`, 'warning');
-    if (enemy.boss) this.log('WARNING: This is a BOSS enemy!', 'error');
+    this.combatModule.startCombat(enemyId);
   }
 
   combatAction(action: 'attack' | 'flee') {
-    if (!this.state.inCombat || !this.state.currentEnemy) return;
-    const enemy = this.state.currentEnemy;
-
-    this.savePreviousState();
-
-    if (action === 'attack') {
-      let weaponBonus = 0;
-      for (const item of this.state.inventory) {
-        const d = items[item];
-        if (d?.type === 'weapon') weaponBonus = Math.max(weaponBonus, d.attack || 0);
-      }
-
-      let dmg = Math.floor(Math.random() * (COMBAT_BASE_DAMAGE_MAX - COMBAT_BASE_DAMAGE_MIN + 1)) + COMBAT_BASE_DAMAGE_MIN + weaponBonus;
-      if (enemy.weakness?.some((w: string) => this.state.inventory.includes(w))) {
-        dmg = Math.floor(dmg * 1.5);
-      }
-      if (Math.random() < CRITICAL_HIT_CHANCE) {
-        dmg = Math.floor(dmg * CRITICAL_MULTIPLIER);
-        this.log('CRITICAL HIT!', 'combat');
-      }
-
-      const actualDmg = Math.max(1, dmg - Math.floor(enemy.defense / 3));
-      this.state.enemyHealth -= actualDmg;
-      this.log(`You deal ${actualDmg} damage to ${enemy.name}!`, 'combat');
-
-      if (this.state.enemyHealth <= 0) {
-        this.combatVictory(enemy);
-        return;
-      }
-    } else if (action === 'flee') {
-      if (Math.random() < FLEE_SUCCESS_CHANCE) {
-        this.log('You successfully flee from combat!', 'success');
-        this.state.inCombat = false;
-        this.state.currentEnemy = null;
-        this.state.enemyHealth = 0;
-        this.state.health = Math.max(0, this.state.health - FLEE_DAMAGE);
-        return;
-      } else {
-        this.log('You fail to escape!', 'error');
-      }
-    }
-
-    const playerDef = this.getPlayerDefense();
-    const enemyDmg = Math.max(1, enemy.attack - Math.floor(playerDef / 3) + Math.floor(Math.random() * ENEMY_DAMAGE_VARIANCE) - Math.floor(ENEMY_DAMAGE_VARIANCE / 2));
-    this.state.health -= enemyDmg;
-    this.log(`${enemy.name} deals ${enemyDmg} damage to you!`, 'error');
-
-    if (this.state.health <= 0) {
-      this.state.health = 0;
-      this.state.game_over = true;
-      this.log(`You have been defeated by ${enemy.name}!`, 'error');
-      this.unlockAchievement('Fallen Hero');
+    this.combatModule.combatAction(action);
+    if (this.state.inCombat && this.state.currentEnemy?.boss && this.state.currentEnemy.name === 'Dragon' && this.state.dragonDefeated) {
+      this.questModule.checkQuestProgress('defeat_dragon', 'action', 'defeat_dragon');
+      this.checkEnding('dragon_slayer');
     }
   }
 
   getPlayerDefense(): number {
-    let def = 0;
-    for (const item of this.state.inventory) {
-      const d = items[item];
-      if (d?.type === 'armor') def = Math.max(def, d.defense || 0);
-    }
-    return def;
+    return this.inventoryModule.getPlayerDefense();
   }
 
   combatVictory(enemy: EnemyData) {
-    this.log(`VICTORY! You defeated ${enemy.name}!`, 'success');
-    this.state.score += enemy.boss ? 150 : 50;
-    this.state.inCombat = false;
-
-    for (const drop of (enemy.drops || [])) {
-      if (!this.state.inventory.includes(drop)) {
-        this.state.inventory.push(drop);
-        this.log(`You found: ${drop}!`, 'success');
-      }
-    }
-
-    if (enemy.boss && enemy.name === 'Dragon') {
-      this.state.dragonDefeated = true;
-      this.checkQuestProgress('defeat_dragon', 'action', 'defeat_dragon');
-      this.checkEnding('dragon_slayer');
-    }
-
-    this.state.currentEnemy = null;
-    this.state.enemyHealth = 0;
-    this.unlockAchievement('Victor');
+    this.combatModule.combatVictory(enemy);
   }
 
   triggerPuzzle(puzzleId: string) {
@@ -646,44 +474,11 @@ export class GameEngine {
   }
 
   checkQuestProgress(questId: string, objType: string, objValue: string) {
-    if (!this.state.activeQuests.includes(questId)) return;
-    const quest = quests[questId];
-    if (!quest) return;
-
-    for (const obj of quest.objectives) {
-      if (objType === 'item' && obj.item === objValue && this.state.inventory.includes(objValue)) {
-        this.completeQuestObjective(questId, obj);
-      } else if (objType === 'action' && obj.action === objValue) {
-        this.completeQuestObjective(questId, obj);
-      }
-    }
-  }
-
-  completeQuestObjective(questId: string, obj: import('./types').QuestObjective) {
-    const quest = quests[questId];
-    if (!this.state.completedObjectives[questId]) this.state.completedObjectives[questId] = [];
-    const key = JSON.stringify(obj);
-    if (!this.state.completedObjectives[questId].includes(key)) {
-      this.state.completedObjectives[questId].push(key);
-    }
-    if (this.state.completedObjectives[questId].length >= quest.objectives.length) {
-      this.completeQuest(questId);
-    }
+    this.questModule.checkQuestProgress(questId, objType, objValue);
   }
 
   completeQuest(questId: string) {
-    if (this.state.completedQuests.includes(questId)) return;
-    const quest = quests[questId];
-    this.state.activeQuests = this.state.activeQuests.filter((q: string) => q !== questId);
-    this.state.completedQuests.push(questId);
-    const reward = quest.reward;
-    if (reward.score) this.state.score += reward.score;
-    if (reward.health) this.state.health = Math.min(this.state.maxHealth, this.state.health + reward.health);
-    for (const i of (reward.items || [])) {
-      if (!this.state.inventory.includes(i)) this.state.inventory.push(i);
-    }
-    this.log(`\nQUEST COMPLETE: ${quest.name}`, 'quest');
-    if (reward.message) this.log(`  ${reward.message}`);
+    this.questModule.completeQuest(questId);
   }
 
   checkEnding(endingType: string) {
