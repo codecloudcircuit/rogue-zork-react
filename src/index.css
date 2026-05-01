@@ -25,10 +25,41 @@
   --btn-danger-hover: #f85149;
 }
 
+html[data-theme='light'],
+body[data-theme='light'] {
+  --bg-primary: #f5f1e8;
+  --bg-secondary: #ffffff;
+  --bg-tertiary: #ece6db;
+  --border: #d4cbbb;
+  --text-primary: #1f2328;
+  --text-secondary: #5c6675;
+  --text-dim: #8a7f73;
+  --accent-green: #2f855a;
+  --accent-red: #c93b31;
+  --accent-yellow: #9b6b13;
+  --accent-blue: #2563eb;
+  --accent-purple: #7c3aed;
+  --accent-cyan: #0f9d8f;
+  --accent-orange: #c96a1f;
+  --btn-primary: #2f8f46;
+  --btn-primary-hover: #26753a;
+  --btn-danger: #c93b31;
+  --btn-danger-hover: #e24a3f;
+  color-scheme: light;
+}
+
 html, body, #root {
   height: 100%;
   width: 100%;
   overflow: hidden;
+}
+
+html {
+  color-scheme: dark;
+}
+
+html[data-theme='light'] {
+  color-scheme: light;
 }
 
 body {
@@ -37,6 +68,7 @@ body {
   color: var(--text-primary);
   -webkit-tap-highlight-color: transparent;
   user-select: none;
+  color-scheme: inherit;
 }
 
 .app {
@@ -61,6 +93,22 @@ body {
   font-size: 13px;
   gap: 8px;
   flex-shrink: 0;
+}
+
+.theme-toggle {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 5px 10px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.theme-toggle:active {
+  transform: scale(0.96);
 }
 
 .status-bar .location-name {
@@ -407,6 +455,11 @@ body {
   background: var(--bg-tertiary);
   border: 1px solid var(--border);
   color: var(--text-primary);
+}
+
+.welcome .start-btn.secondary:active,
+.theme-toggle:active {
+  background: var(--bg-secondary);
 }
 
 /* Tabs */

@@ -3,6 +3,9 @@ import { GameEngine } from './game/engine';
 import { locations } from './data/locations';
 import './index.css';
 
+type Theme = 'dark' | 'light';
+const THEME_STORAGE_KEY = 'rogue-zork-theme';
+
 function App() {
   const [engine, setEngine] = useState<GameEngine | null>(null);
   const [logs, setLogs] = useState<{ text: string; type: string }[]>([]);
@@ -10,6 +13,18 @@ function App() {
   const [started, setStarted] = useState(false);
   const [tab, setTab] = useState<'play' | 'map' | 'info'>('play');
   const [showInv, setShowInv] = useState(false);
+  const [theme, setTheme] = useState<Theme>(() => {
+    if (typeof window === 'undefined') return 'dark';
+
+    try {
+      const saved = window.localStorage.getItem(THEME_STORAGE_KEY);
+      if (saved === 'dark' || saved === 'light') return saved;
+    } catch {
+      // Ignore storage errors and fall back to the system preference.
+    }
+
+    return window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+  });
   const logRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -17,6 +32,22 @@ function App() {
       logRef.current.scrollTop = logRef.current.scrollHeight;
     }
   }, [logs]);
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    document.body.dataset.theme = theme;
+
+    const metaThemeColor = document.querySelector('meta[name="theme-color"]');
+    if (metaThemeColor) {
+      metaThemeColor.setAttribute('content', theme === 'dark' ? '#0d1117' : '#f5f1e8');
+    }
+
+    try {
+      window.localStorage.setItem(THEME_STORAGE_KEY, theme);
+    } catch {
+      // Ignore storage failures; the selected theme still applies in memory.
+    }
+  }, [theme]);
 
   const initGame = useCallback(() => {
     const g = new GameEngine();
@@ -106,9 +137,15 @@ function App() {
         <div className="welcome">
           <h1>Rogue Zork</h1>
           <p>A text adventure with combat, quests, puzzles, and multiple endings.</p>
-          <p style={{ color: '#8b949e', fontSize: 13 }}>
+          <p style={{ color: 'var(--text-secondary)', fontSize: 13 }}>
             Tap directional buttons to move, or type commands for full control.
           </p>
+          <button
+            className="start-btn secondary"
+            onClick={() => setTheme((current) => (current === 'dark' ? 'light' : 'dark'))}
+          >
+            {theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+          </button>
           <button className="start-btn" onClick={initGame}>New Game</button>
           <button className="start-btn secondary" onClick={loadGame}>Continue</button>
         </div>
@@ -135,6 +172,14 @@ function App() {
         <span className={hpClass}>{s.health}/{s.maxHealth}</span>
         <span className="stat score">{s.score}pts</span>
         <span className="stat">{s.moves}/{s.maxMoves}</span>
+        <button
+          className="theme-toggle"
+          onClick={() => setTheme((current) => (current === 'dark' ? 'light' : 'dark'))}
+          aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+          title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+        >
+          {theme === 'dark' ? 'Light' : 'Dark'}
+        </button>
       </div>
 
       {/* Combat Panel */}
@@ -217,7 +262,7 @@ function App() {
           <div className="action-menu">
             {menuItems.map((item, i) => {
               if (item.type === 'section') {
-                return <span key={i} style={{ width: '100%', fontSize: 11, color: '#484f58', textTransform: 'uppercase', letterSpacing: 0.5, padding: '4px 0 2px' }}>{item.label}</span>;
+                return <span key={i} style={{ width: '100%', fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.5, padding: '4px 0 2px' }}>{item.label}</span>;
               }
               let cls = 'action-btn';
               if (item.type === 'move') cls += ' move';
@@ -336,8 +381,8 @@ function App() {
             </>
           )}
 
-          {s.dragonDefeated && <p style={{ color: '#3fb950' }}>Dragon: Defeated</p>}
-          {s.freedPrincess && <p style={{ color: '#3fb950' }}>Princess: Freed</p>}
+          {s.dragonDefeated && <p style={{ color: 'var(--accent-green)' }}>Dragon: Defeated</p>}
+          {s.freedPrincess && <p style={{ color: 'var(--accent-green)' }}>Princess: Freed</p>}
         </div>
       )}
     </div>

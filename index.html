@@ -3,8 +3,24 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta name="color-scheme" content="dark light" />
     <meta name="theme-color" content="#0d1117" />
     <title>Rogue Zork</title>
+    <script>
+      (() => {
+        try {
+          const saved = localStorage.getItem('rogue-zork-theme');
+          const theme = saved === 'light' || saved === 'dark'
+            ? saved
+            : window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+          document.documentElement.dataset.theme = theme;
+          const meta = document.querySelector('meta[name="theme-color"]');
+          if (meta) meta.setAttribute('content', theme === 'dark' ? '#0d1117' : '#f5f1e8');
+        } catch {
+          // Ignore early boot failures and let React reconcile the theme later.
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

@@ -795,6 +795,7 @@ export class GameEngine {
 
     switch (action) {
       case 'n': case 's': case 'e': case 'w': case 'ne': case 'nw': case 'se': case 'sw': case 'u': case 'd':
+      case 'north': case 'south': case 'east': case 'west': case 'northeast': case 'northwest': case 'southeast': case 'southwest': case 'up': case 'down':
         this.move(action);
         break;
       case 'go': case 'move': case 'walk':
