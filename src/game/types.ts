@@ -1,6 +1,7 @@
 export interface LocationData {
   name: string;
   description: string;
+  briefDescription?: string;
   exits: Record<string, string>;
   items: string[];
   characters: string[];

@@ -15,6 +15,11 @@ function App() {
   const [started, setStarted] = useState(false);
   const [tab, setTab] = useState<'play' | 'map' | 'info'>('play');
   const [showInv, setShowInv] = useState(false);
+  const [showDpad, setShowDpad] = useState(true);
+  const [showActionsPopup, setShowActionsPopup] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [textSize, setTextSize] = useState(14);
+  const [showTalkPopup, setShowTalkPopup] = useState(false);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [theme, setTheme] = useState<Theme>(() => {
     if (typeof window === 'undefined') return 'dark';
@@ -38,6 +43,7 @@ function App() {
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
+    document.documentElement.dataset.textSize = String(textSize);
     document.body.dataset.theme = theme;
 
     const metaThemeColor = document.querySelector('meta[name="theme-color"]');
@@ -50,7 +56,7 @@ function App() {
     } catch {
       // Ignore storage failures; the selected theme still applies in memory.
     }
-  }, [theme]);
+  }, [theme, textSize]);
 
   const initGame = useCallback(() => {
     const g = new GameEngine();
@@ -96,13 +102,31 @@ function App() {
     setInput('');
   }, [engine, input]);
 
+  const handleTakeAll = useCallback(() => {
+    if (!engine) return;
+    const items = engine.state.locationItems[engine.state.location] || [];
+    if (items.length === 0) {
+      engine.log('There is nothing here to take.', 'info');
+    } else {
+      for (const item of items) {
+        engine.processInput(`take ${item}`);
+      }
+    }
+    setLogs(engine.getLogs());
+  }, [engine]);
+
   const handleAction = useCallback((action: string) => {
     if (!engine) return;
     if (action === 'look') {
       const loc = locations[engine.state.location];
+      const isVisited = engine.state.visitedLocations.has(engine.state.location);
       if (loc) {
         engine.log(`\n=== ${loc.name} ===`, 'achievement');
-        engine.log(loc.description, 'room-desc');
+        if (!isVisited) {
+          engine.log(loc.description, 'room-desc');
+        } else {
+          engine.log(loc.briefDescription || `(You've been here)`, 'info');
+        }
         const itemsHere = engine.state.locationItems[engine.state.location];
         if (itemsHere?.length) engine.log(`You see: ${itemsHere.join(', ')}`, 'warning');
         const charsHere = engine.state.locationCharacters[engine.state.location];
@@ -169,6 +193,9 @@ function App() {
   const menuItems = engine.getActionMenu();
   const hpPercent = Math.max(0, (s.health / s.maxHealth) * 100);
   const hpClass = hpPercent > 60 ? 'health' : hpPercent > 30 ? 'health med' : 'health low';
+  const charsHere = s.locationCharacters[s.location] || [];
+  const charsInRoom = charsHere.map((c: string) => characters[c]).filter(Boolean);
+  const itemsHere = s.locationItems[s.location] || [];
 
   const dirs = ['north', 'south', 'east', 'west', 'northeast', 'northwest', 'southeast', 'southwest', 'up', 'down'];
   const dirLabels: Record<string, string> = { north: 'N', south: 'S', east: 'E', west: 'W', northeast: 'NE', northwest: 'NW', southeast: 'SE', southwest: 'SW', up: 'U', down: 'D' };
@@ -184,12 +211,11 @@ function App() {
         {saveStatus === 'saving' && <span className="stat save-status saving">Saving...</span>}
         {saveStatus === 'saved' && <span className="stat save-status saved">Saved!</span>}
         <button
-          className="theme-toggle"
-          onClick={() => setTheme((current) => (current === 'dark' ? 'light' : 'dark'))}
-          aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
-          title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+          className="settings-btn"
+          onClick={() => setShowSettings(true)}
+          aria-label="Settings"
         >
-          {theme === 'dark' ? 'Light' : 'Dark'}
+          ⚙
         </button>
       </div>
 
@@ -213,77 +239,6 @@ function App() {
 
       {tab === 'play' && (
         <>
-          {/* Direction Pad */}
-          <div className="dir-pad" role="navigation" aria-label="Directional movement">
-            <button className={`dir-btn ${loc?.exits['northwest'] ? 'move' : 'empty'}`}
-              onClick={() => loc?.exits['northwest'] && handleAction('northwest')}
-              disabled={!loc?.exits['northwest']}
-              aria-label="Move northwest"
-              aria-disabled={!loc?.exits['northwest']}>
-              {loc?.exits['northwest'] ? 'NW' : ''}
-            </button>
-            <button className={`dir-btn ${loc?.exits['north'] ? 'move' : 'empty'}`}
-              onClick={() => loc?.exits['north'] && handleAction('north')}
-              disabled={!loc?.exits['north']}
-              aria-label="Move north"
-              aria-disabled={!loc?.exits['north']}>
-              {loc?.exits['north'] ? 'N' : ''}
-            </button>
-            <button className={`dir-btn ${loc?.exits['northeast'] ? 'move' : 'empty'}`}
-              onClick={() => loc?.exits['northeast'] && handleAction('northeast')}
-              disabled={!loc?.exits['northeast']}
-              aria-label="Move northeast"
-              aria-disabled={!loc?.exits['northeast']}>
-              {loc?.exits['northeast'] ? 'NE' : ''}
-            </button>
-            <button className={`dir-btn ${loc?.exits['west'] ? 'move' : 'empty'}`}
-              onClick={() => loc?.exits['west'] && handleAction('west')}
-              disabled={!loc?.exits['west']}
-              aria-label="Move west"
-              aria-disabled={!loc?.exits['west']}>
-              {loc?.exits['west'] ? 'W' : ''}
-            </button>
-            <div className="dir-btn here" aria-current="true">*</div>
-            <button className={`dir-btn ${loc?.exits['east'] ? 'move' : 'empty'}`}
-              onClick={() => loc?.exits['east'] && handleAction('east')}
-              disabled={!loc?.exits['east']}
-              aria-label="Move east"
-              aria-disabled={!loc?.exits['east']}>
-              {loc?.exits['east'] ? 'E' : ''}
-            </button>
-            <button className={`dir-btn ${loc?.exits['southwest'] ? 'move' : 'empty'}`}
-              onClick={() => loc?.exits['southwest'] && handleAction('southwest')}
-              disabled={!loc?.exits['southwest']}
-              aria-label="Move southwest"
-              aria-disabled={!loc?.exits['southwest']}>
-              {loc?.exits['southwest'] ? 'SW' : ''}
-            </button>
-            <button className={`dir-btn ${loc?.exits['south'] ? 'move' : 'empty'}`}
-              onClick={() => loc?.exits['south'] && handleAction('south')}
-              disabled={!loc?.exits['south']}
-              aria-label="Move south"
-              aria-disabled={!loc?.exits['south']}>
-              {loc?.exits['south'] ? 'S' : ''}
-            </button>
-            <button className={`dir-btn ${loc?.exits['southeast'] ? 'move' : 'empty'}`}
-              onClick={() => loc?.exits['southeast'] && handleAction('southeast')}
-              disabled={!loc?.exits['southeast']}
-              aria-label="Move southeast"
-              aria-disabled={!loc?.exits['southeast']}>
-              {loc?.exits['southeast'] ? 'SE' : ''}
-            </button>
-          </div>
-          {(loc?.exits['up'] || loc?.exits['down']) && (
-            <div className="vertical-buttons">
-              {loc?.exits['up'] && (
-                <button className="action-btn move" onClick={() => handleAction('up')}>Up</button>
-              )}
-              {loc?.exits['down'] && (
-                <button className="action-btn move" onClick={() => handleAction('down')}>Down</button>
-              )}
-            </div>
-          )}
-
           {/* Game Log */}
           <div className="game-log" ref={logRef}>
             {logs.map((entry, i) => (
@@ -293,26 +248,216 @@ function App() {
             ))}
           </div>
 
-          {/* Action Menu */}
-          <div className="action-menu">
-            {menuItems.map((item, i) => {
-              if (item.type === 'section') {
-                return <span key={i} className="menu-section-label">{item.label}</span>;
-              }
-              let cls = 'action-btn';
-              if (item.type === 'move') cls += ' move';
-              else if (item.type === 'take') cls += ' take';
-              else if (item.type === 'talk') cls += ' talk';
-              else if (item.type === 'attack') cls += ' attack';
-              else if (item.type === 'flee') cls += ' flee';
-              else if (item.type === 'save') cls += ' save';
-              return (
-                <button key={i} className={cls} onClick={() => handleAction(item.action)}>
-                  {item.label}
-                </button>
-              );
-            })}
+          {/* Bottom Controls */}
+          <div className={`controls-row ${showDpad ? 'expanded' : 'collapsed'}`}>
+            <button className="controls-toggle" onClick={() => setShowDpad(!showDpad)}>
+              {showDpad ? '▼' : '▲'}
+            </button>
+            {showDpad && (
+              <>
+                {/* Large D-Pad */}
+                <div className="dpad-wrapper">
+                  <div className="dpad-section" role="navigation" aria-label="Directional movement">
+                    <button className={`ld-btn ${loc?.exits['northwest'] ? 'move' : 'empty'}`}
+                      onClick={() => loc?.exits['northwest'] && handleAction('northwest')}
+                      disabled={!loc?.exits['northwest']}>
+                      NW
+                    </button>
+                    <button className={`ld-btn ${loc?.exits['north'] ? 'move' : 'empty'}`}
+                      onClick={() => loc?.exits['north'] && handleAction('north')}
+                      disabled={!loc?.exits['north']}>
+                      N
+                    </button>
+                    <button className={`ld-btn ${loc?.exits['northeast'] ? 'move' : 'empty'}`}
+                      onClick={() => loc?.exits['northeast'] && handleAction('northeast')}
+                      disabled={!loc?.exits['northeast']}>
+                      NE
+                    </button>
+                    <button className={`ld-btn ${loc?.exits['west'] ? 'move' : 'empty'}`}
+                      onClick={() => loc?.exits['west'] && handleAction('west')}
+                      disabled={!loc?.exits['west']}>
+                      W
+                    </button>
+                    <div className="ld-btn here">*</div>
+                    <button className={`ld-btn ${loc?.exits['east'] ? 'move' : 'empty'}`}
+                      onClick={() => loc?.exits['east'] && handleAction('east')}
+                      disabled={!loc?.exits['east']}>
+                      E
+                    </button>
+                    <button className={`ld-btn ${loc?.exits['southwest'] ? 'move' : 'empty'}`}
+                      onClick={() => loc?.exits['southwest'] && handleAction('southwest')}
+                      disabled={!loc?.exits['southwest']}>
+                      SW
+                    </button>
+                    <button className={`ld-btn ${loc?.exits['south'] ? 'move' : 'empty'}`}
+                      onClick={() => loc?.exits['south'] && handleAction('south')}
+                      disabled={!loc?.exits['south']}>
+                      S
+                    </button>
+                    <button className={`ld-btn ${loc?.exits['southeast'] ? 'move' : 'empty'}`}
+                      onClick={() => loc?.exits['southeast'] && handleAction('southeast')}
+                      disabled={!loc?.exits['southeast']}>
+                      SE
+                    </button>
+                  </div>
+                  <div className="vertical-btns">
+                    <button className={`vd-btn ${loc?.exits['up'] ? 'move' : 'empty'}`}
+                      onClick={() => loc?.exits['up'] && handleAction('up')}
+                      disabled={!loc?.exits['up']}>▲</button>
+                    <button className={`vd-btn ${loc?.exits['down'] ? 'move' : 'empty'}`}
+                      onClick={() => loc?.exits['down'] && handleAction('down')}
+                      disabled={!loc?.exits['down']}>▼</button>
+                  </div>
+                </div>
+
+                {/* Quick Actions */}
+                <div className="quick-actions">
+                  <button className="qa-btn" onClick={() => handleAction('look')}>👁</button>
+                  <button className={`qa-btn ${charsInRoom.length === 0 ? 'disabled' : ''}`}
+                    onClick={() => charsInRoom.length === 1 ? handleAction(`talk ${charsHere[0]}`) : charsInRoom.length > 1 ? setShowTalkPopup(true) : null}
+                    disabled={charsInRoom.length === 0}>💬</button>
+                  <button className={`qa-btn ${itemsHere.length === 0 ? 'disabled' : ''}`}
+                    onClick={itemsHere.length > 0 ? handleTakeAll : undefined}
+                    disabled={itemsHere.length === 0}>✋</button>
+                  <button className="qa-btn" onClick={() => handleAction('inventory')}>🎒</button>
+                  <button className="qa-btn" onClick={() => handleAction('health')}>❤</button>
+                  <button className="qa-btn" onClick={() => handleAction('map')}>🗺</button>
+                  <button className="qa-btn" onClick={() => handleAction('quests')}>📜</button>
+                  <button className="qa-btn" onClick={() => handleAction('save')}>💾</button>
+                  <button className="qa-btn more" onClick={() => setShowActionsPopup(true)}>≡</button>
+                </div>
+              </>
+            )}
           </div>
+
+          {/* Actions Popup */}
+          {showActionsPopup && (
+            <div className="actions-popup-overlay" onClick={() => setShowActionsPopup(false)}>
+              <div className="actions-popup" onClick={(e) => e.stopPropagation()}>
+                <div className="popup-header">
+                  <div className="popup-header-content">
+                    <span>Actions</span>
+                    <span className="popup-stats">❤{s.health} | 💰{s.score} | 🎯{s.moves}/{s.maxMoves}</span>
+                  </div>
+                  <button className="popup-close" onClick={() => setShowActionsPopup(false)}>✕</button>
+                </div>
+                <div className="popup-content">
+                  {menuItems.map((item, i) => {
+                    if (item.type === 'section') {
+                      return <span key={i} className="menu-section-label">{item.label}</span>;
+                    }
+                    let cls = 'action-btn';
+                    let icon = '';
+                    if (item.action === 'look') icon = '👁 ';
+                    else if (item.action === 'inventory') icon = '🎒 ';
+                    else if (item.action === 'health') icon = '❤ ';
+                    else if (item.action === 'map') icon = '🗺 ';
+                    else if (item.action === 'quests') icon = '📜 ';
+                    else if (item.action === 'status') icon = '⚙ ';
+                    else if (item.action === 'save') icon = '💾 ';
+                    else if (item.action === 'undo') icon = '↩ ';
+                    else if (item.type === 'move') icon = '⬆ ';
+                    else if (item.type === 'take') icon = '✋ ';
+                    else if (item.type === 'talk') icon = '💬 ';
+                    else if (item.type === 'attack') icon = '⚔ ';
+                    else if (item.type === 'flee') icon = '🏃 ';
+                    return (
+                      <button key={i} className={cls} onClick={() => { handleAction(item.action); setShowActionsPopup(false); }}>
+                        {icon}{item.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Talk Character Selection Popup */}
+          {showTalkPopup && (
+            <div className="talk-popup-overlay" onClick={() => setShowTalkPopup(false)}>
+              <div className="talk-popup" onClick={(e) => e.stopPropagation()}>
+                <div className="popup-header">
+                  <span>Talk to...</span>
+                  <button className="popup-close" onClick={() => setShowTalkPopup(false)}>✕</button>
+                </div>
+                <div className="talk-list">
+                  {charsHere.map((charId: string, i: number) => {
+                    const char = characters[charId];
+                    return (
+                      <button
+                        key={i}
+                        className="talk-char-btn"
+                        onClick={() => { handleAction(`talk ${charId}`); setShowTalkPopup(false); }}
+                      >
+                        <span className="char-name">{char?.name || charId}</span>
+                        <span className="char-desc">{char?.personality}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Settings Popup */}
+          {showSettings && (
+            <div className="settings-popup-overlay" onClick={() => setShowSettings(false)}>
+              <div className="settings-popup" onClick={(e) => e.stopPropagation()}>
+                <div className="settings-header">
+                  <span>Settings</span>
+                  <button className="popup-close" onClick={() => setShowSettings(false)}>✕</button>
+                </div>
+                <div className="settings-content">
+                  <div className="setting-item">
+                    <label>Theme</label>
+                    <div className="theme-toggle-row">
+                      <button
+                        className={`theme-opt ${theme === 'dark' ? 'active' : ''}`}
+                        onClick={() => setTheme('dark')}
+                      >
+                        🌙 Dark
+                      </button>
+                      <button
+                        className={`theme-opt ${theme === 'light' ? 'active' : ''}`}
+                        onClick={() => setTheme('light')}
+                      >
+                        ☀️ Light
+                      </button>
+                    </div>
+                  </div>
+                  <div className="setting-item">
+                    <label>Text Size: {textSize}px</label>
+                    <input
+                      type="range"
+                      min="12"
+                      max="20"
+                      value={textSize}
+                      onChange={(e) => setTextSize(parseInt(e.target.value))}
+                      className="text-size-slider"
+                    />
+                  </div>
+                  <div className="setting-item">
+                    <label>Game Stats</label>
+                    <div className="stats-display">
+                      <span>Health: {s.health}/{s.maxHealth}</span>
+                      <span>Score: {s.score}</span>
+                      <span>Moves: {s.moves}/{s.maxMoves}</span>
+                    </div>
+                  </div>
+                  <div className="setting-item">
+                    <button className="settings-action-btn" onClick={() => { engine?.saveToStorage(); setShowSettings(false); }}>
+                      💾 Save Game
+                    </button>
+                  </div>
+                  <div className="setting-item">
+                    <button className="settings-action-btn" onClick={() => { engine?.loadFromStorage(); setShowSettings(false); }}>
+                      📂 Load Game
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Inventory Toggle */}
           {s.inventory.length > 0 && (

@@ -701,11 +701,11 @@ export class GameEngine {
     if (!locData) return menu;
 
     if (this.state.inCombat) {
+      menu.push({ type: 'info', label: 'Inventory', action: 'inventory' });
       menu.push({ type: 'section', label: 'Combat', action: '' });
       menu.push({ type: 'attack', label: 'Attack', action: 'attack' });
       menu.push({ type: 'flee', label: 'Flee', action: 'flee' });
       menu.push({ type: 'info', label: 'Check Health', action: 'health' });
-      menu.push({ type: 'info', label: 'Check Inventory', action: 'inventory' });
       menu.push({ type: 'save', label: 'Save Game', action: 'save' });
       return menu;
     }
