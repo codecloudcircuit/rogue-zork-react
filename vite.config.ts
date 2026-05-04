@@ -5,7 +5,7 @@ export default defineConfig({
   plugins: [react()],
   base: '/rogue-zork-react/',
   server: {
-    port: 3001,
+    port: 4173,
     host: true
   }
 })

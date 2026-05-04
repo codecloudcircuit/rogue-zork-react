@@ -2,7 +2,7 @@
 
 ## Development
 
-- **Dev Server**: Run `npm run dev` - runs on port **3001**
+- **Dev Server**: Run `npm run dev` - runs on port **4173**
 - **Build**: `npm run build`
 
 ## UI Layout
